@@ -35,9 +35,15 @@ function escapeAttribute(value) {
     return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 }
 
+// De engine leest deze opties als de string "false" (shift: opts.shift === 'false');
+// weglaten zou ze juist AAN laten. Andere booleans werken op aanwezigheid.
+const FALSE_AS_STRING = new Set(["shift", "decorative"]);
+
 function settingEntries(settings) {
-    return Object.entries(settings).filter(([key, value]) =>
-        !RESERVED.has(key) && ID.test(key) && value !== false && value !== null && value !== undefined);
+    return Object.entries(settings)
+        .filter(([key, value]) => !RESERVED.has(key) && ID.test(key) && value !== null && value !== undefined)
+        .filter(([key, value]) => value !== false || FALSE_AS_STRING.has(key))
+        .map(([key, value]) => [key, value === false ? "false" : value]);
 }
 
 function applySettings(node, settings) {
@@ -107,6 +113,8 @@ function fit(frame, node, state) {
  */
 export function packOrder(items, columns) {
     if (!Number.isInteger(columns) || columns < 1) throw new TypeError(`Ongeldig aantal kolommen: ${columns}`);
+    const wide = items.filter((item) => item.span[0] > columns);
+    if (wide.length) throw new RangeError(`${wide.length} item(s) breder dan ${columns} kolommen`);
     const taken = new Set();
     const key = (x, y) => `${x},${y}`;
     const fits = (x, y, [w, h]) => {
@@ -174,6 +182,9 @@ export function registerWaveElements(system, options = {}) {
             const observer = typeof ResizeObserver === "function" ? new ResizeObserver(refit) : null;
             observer?.observe(frame);
             observer?.observe(node);
+            // Ook de kinderen: een renderer die een glyph of tekst wisselt (hazard) verandert
+            // van maat zonder dat node of frame dat doen.
+            for (const child of node.children) observer?.observe(child);
             refit();
             frames.set(frame, { node, observer });
             return frame;

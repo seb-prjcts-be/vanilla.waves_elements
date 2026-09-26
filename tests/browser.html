@@ -112,6 +112,23 @@ try {
     try { await tinyWaves.add("barcode"); } catch { spanRejected = true; }
     check("span die niet past: add() weigert en laat geen block achter", spanRejected && host2.querySelectorAll(".blocks-system-object").length === 0 && tinyWaves.size === 0,
         `blocks=${host2.querySelectorAll(".blocks-system-object").length} size=${tinyWaves.size}`);
+    // Shift-principe: shift:false moet de sampler echt bevriezen.
+    const frozen = await waves.add("bars", { seed: 7, shift: false });
+    check("shift:false komt als data-shift=\"false\" bij de engine", frozen.content.querySelector("[data-wv]").dataset.shift === "false");
+
+    // Inktvlek valt volledig binnen het frame (scrolltest alleen bewijst dat niet: het frame clipt).
+    const outside = live.filter((b) => {
+        const frame = b.content.querySelector(".wv-element").getBoundingClientRect();
+        const node = b.content.querySelector("[data-wv]");
+        return [...node.children].some((child) => {
+            const r = child.getBoundingClientRect();
+            if (!r.width && !r.height) return false;
+            if (getComputedStyle(child).position === "absolute") return false;   // scanlijnen e.d. bewegen bewust
+            return r.left < frame.left - 1 || r.right > frame.right + 1 || r.top < frame.top - 1 || r.bottom > frame.bottom + 1;
+        });
+    }).map((b) => b.content.querySelector("[data-wv]").dataset.wv);
+    check("inktvlek van elk element valt binnen zijn frame", outside.length === 0, outside.join(","));
+
     const hijack = await waves.add("bars", { wv: "boot" });
     check("setting 'wv' kan het renderertype niet overnemen", hijack.content.querySelector("[data-wv]").dataset.wv === "bars");
     let dupRejected = false;

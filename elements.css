@@ -61,6 +61,8 @@
     display: flex;
     align-items: stretch;
     height: 34px;
+    width: max-content;   /* zo breed als de staven: dan meet het vulframe de echte code */
+    max-width: 100%;
     overflow: hidden;
 }
 .wv-barcode i { display: block; height: 100%; background: var(--wv-ink); }

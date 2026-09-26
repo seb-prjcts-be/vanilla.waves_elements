@@ -114,5 +114,12 @@ for (const columns of [4, 6, 8]) {
     assert.equal(holes, 0, `packOrder(${columns}): geen gaten boven de laatste rij`);
 }
 assert.ok(simulate(ELEMENTS, 8).holes > 0, "zonder packOrder ontstaan wel gaten (test is scherp)");
+assert.throws(() => packOrder(ELEMENTS, 1), /breder/, "item breder dan het raster: weigeren in plaats van eindeloos zoeken");
+
+// 8. Shift-principe: de engine zet shift alleen uit bij de string "false".
+const shiftOff = adapter.snippet({ block: def, settings: { shift: false } });
+assert.match(shiftOff, /data-shift="false"/, "shift:false wordt data-shift=\"false\" (anders blijft shift aan)");
+const scanOff = adapter.snippet({ block: def, settings: { scan: false } });
+assert.doesNotMatch(scanOff, /data-scan/, "gewone booleaanse optie false: attribuut weglaten");
 
 console.log(`contract ok — ${ELEMENTS.length} elementen, adapter 'wave-element'`);
