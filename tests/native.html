@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>RUNNING</title>
+<link rel="stylesheet" href="../../blocks.system/blocks.system.css">
+<link rel="stylesheet" href="../elements.css">
+<style>body { margin: 0; font: 14px monospace; } #field { width: 900px; } pre { padding: 1rem; }</style>
+</head>
+<body>
+<div id="field"></div>
+<pre id="log"></pre>
+<script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
+<script type="module">
+// fill:"native" met span:"auto": het block past zich aan de inhoud aan, niet omgekeerd.
+import { createBlocksSystem } from "../../blocks.system/blocks.system.mjs";
+import { registerWaveElements } from "../blocks.mjs";
+
+const log = document.querySelector("#log");
+const results = [];
+function check(name, ok, info = "") {
+    results.push({ name, ok });
+    log.textContent += `${ok ? "PASS" : "FAIL"}  ${name}${info ? "  — " + info : ""}\n`;
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const ROW = 24;
+const ROWS = 60;
+
+try {
+    const system = createBlocksSystem({ layout: "flow-grid", inversionVariation: 0, colorVariation: 0 });
+    const waves = registerWaveElements(system, { fill: "native" });
+    const field = document.querySelector("#field");
+    field.style.height = `${ROWS * ROW}px`;
+    system.attach(field).setGrid(6, ROWS);
+
+    const live = {};
+    for (const id of ["barcode", "reticle", "loadbar", "statusdot", "readout", "scan", "levels", "scramble", "hazard", "boot", "counter", "dimension"]) {
+        live[id] = await waves.add(id, {}, { span: "auto" });
+    }
+    const red = await waves.add("gauge", {}, { accent: "red", span: "auto" });
+    await document.fonts.ready;
+    await wait(400);
+
+    const nodes = [...field.querySelectorAll("[data-wv]")];
+    const scaled = nodes.filter((n) => n.style.transform).map((n) => n.dataset.wv);
+    check("niets wordt geschaald", scaled.length === 0, scaled.join(","));
+
+    const bars = [...live.barcode.content.querySelectorAll(".wv-barcode i")].map((i) => i.getBoundingClientRect().width);
+    check("barcode-staven blijven 1–4px", bars.length > 0 && bars.every((w) => w >= 0.9 && w <= 4.1), `${Math.min(...bars).toFixed(1)}–${Math.max(...bars).toFixed(1)}px`);
+    const reticle = live.reticle.content.querySelector("svg");
+    check("reticle op ware grootte (46px)", Math.round(reticle.getBoundingClientRect().width) === 46, `${reticle.getBoundingClientRect().width}px`);
+
+    const loader = await waves.add("loader", {}, { span: "auto" });
+    const loaderBox = loader.content.querySelector(".wv-loader").getBoundingClientRect();
+    check("loader op bronmaat (100px)", Math.round(loaderBox.width) === 100, `${loaderBox.width}px`);
+
+    const frame = live.readout.content.querySelector(".wv-element");
+    const fs = getComputedStyle(frame);
+    check("microtypografie uit de bron: Courier 9px hoofdletters", fs.fontSize === "9px" && fs.textTransform === "uppercase" && /Courier/.test(fs.fontFamily),
+        `${fs.fontSize} ${fs.textTransform} ${fs.fontFamily}`);
+    check("bronpalet: warme inkt op papier", fs.color === "rgb(20, 20, 15)" && fs.backgroundColor === "rgb(239, 238, 232)", `${fs.color} op ${fs.backgroundColor}`);
+    const redFrame = getComputedStyle(red.content.querySelector(".wv-element"));
+    check("accentkaart rood uit de bron", redFrame.backgroundColor === "rgb(255, 0, 0)" && redFrame.color === "rgb(255, 255, 255)", `${redFrame.color} op ${redFrame.backgroundColor}`);
+
+    const step = ROW;   // rijpitch ≈ ROW
+    const waste = (block) => {
+        const content = block.content.getBoundingClientRect().height;
+        const node = block.content.querySelector("[data-wv]").getBoundingClientRect().height;
+        return content - node;
+    };
+    const loose = ["loadbar", "statusdot", "readout", "scan"].filter((id) => waste(live[id]) > step + 14 + 6)
+        .map((id) => `${id}:${Math.round(waste(live[id]))}px`);
+    check("één-regel-elementen krijgen geen te hoog block", loose.length === 0, loose.join(" "));
+    const rows = (block) => Number(getComputedStyle(block.element).getPropertyValue("--block-span-rows"));
+    check("scan is lager dan levels (hoogte volgt inhoud)", rows(live.scan) < rows(live.levels) || waste(live.scan) <= step + 20,
+        `scan=${rows(live.scan)} levels=${rows(live.levels)}`);
+
+    const before = rows(live.scramble);
+    live.scramble.dock(true);
+    live.scramble.dock(false);
+    await wait(300);
+    check("na dock/undock blijft de hoogte kloppen", rows(live.scramble) === before, `${before} → ${rows(live.scramble)}`);
+    // Slepen mag niet afbreken door automatische refits (core fitHeight roept drag.stop()).
+    const title = red.element.querySelector(".blocks-system-title");
+    const box = title.getBoundingClientRect();
+    const at = { bubbles: true, cancelable: true, pointerId: 7, isPrimary: true, button: 0, buttons: 1, pointerType: "mouse",
+        clientX: box.left + 5, clientY: box.top + 5 };
+    title.dispatchEvent(new PointerEvent("pointerdown", at));
+    title.dispatchEvent(new PointerEvent("pointermove", { ...at, clientX: at.clientX + 12, clientY: at.clientY + 12 }));
+    const started = field.hasAttribute("data-dragging");
+    await wait(2500);
+    const still = field.hasAttribute("data-dragging");
+    title.dispatchEvent(new PointerEvent("pointerup", { ...at, buttons: 0 }));
+    check("een sleep blijft lopen terwijl de elementen animeren", started && still, `gestart=${started} na 2,5 s=${still}`);
+    title.dispatchEvent(new PointerEvent("pointerdown", at));
+    title.dispatchEvent(new PointerEvent("pointermove", { ...at, clientX: at.clientX + 12, clientY: at.clientY + 12 }));
+    const again = field.hasAttribute("data-dragging");
+    live.barcode.fitHeight();
+    check("controle: één refit breekt een sleep wel af (de test hierboven is dus scherp)", again && !field.hasAttribute("data-dragging"));
+    title.dispatchEvent(new PointerEvent("pointerup", { ...at, buttons: 0 }));
+
+    // Standaard (Sebs keuze "formaten"): zonder opties is elk element een vast catalogusformaat.
+    const plainSystem = createBlocksSystem({ layout: "flow-grid" });
+    const plainWaves = registerWaveElements(plainSystem);
+    const plainField = document.createElement("div");
+    plainField.style.cssText = "width:376px;height:182px";
+    document.body.appendChild(plainField);
+    plainSystem.attach(plainField).setGrid(4, 2);
+    const plain = await plainWaves.add("barcode");
+    const plainSpan = getComputedStyle(plain.element).getPropertyValue("--block-span-columns") + "x" + getComputedStyle(plain.element).getPropertyValue("--block-span-rows");
+    check("standaard: vast catalogusformaat met vulling01, geen schaal",
+        !!plain.content.querySelector(".wv-element--vast") && plainSpan === "2x1" && !plain.content.querySelector("[data-wv]").style.transform, plainSpan);
+
+    // --- weerlegronde 4: vast formaat volgt een resize, free-layout kent geen formaat ---
+    const fixedSystem = createBlocksSystem({ layout: "flow-grid" });
+    const fixedWaves = registerWaveElements(fixedSystem, { fill: "native" });
+    const fixedField = document.createElement("div");
+    fixedField.style.cssText = "width:376px;height:88px";
+    document.body.appendChild(fixedField);
+    fixedSystem.attach(fixedField).setGrid(4, 1);
+    const growing = await fixedWaves.add("bars", {}, { span: [1, 1] });
+    await wait(200);
+    const barsBefore = growing.content.querySelectorAll(".wv-bars i").length;
+    growing.span(4, 1);
+    await wait(400);
+    const barsAfter = growing.content.querySelectorAll(".wv-bars i").length;
+    check("vast formaat volgt een resize: meer staven in een breder block", barsAfter > barsBefore * 2, `${barsBefore} → ${barsAfter}`);
+
+    const freeSystem = createBlocksSystem({ layout: "free" });
+    const freeWaves = registerWaveElements(freeSystem, { fill: "native" });
+    const freeField = document.createElement("div");
+    freeField.style.cssText = "width:400px;height:200px;position:relative";
+    document.body.appendChild(freeField);
+    freeSystem.attach(freeField);
+    let freeError = null;
+    let freeBlock = null;
+    try { freeBlock = await freeWaves.add("statusdot", {}, { span: [2, 1] }); } catch (error) { freeError = error; }
+    check("free-layout: span wordt genegeerd, geen onterechte minimumfout, geen vast formaat",
+        !freeError && freeBlock && !freeBlock.content.querySelector(".wv-element--vast"), freeError ? freeError.message : "");
+
+    // --- weerlegronde 3 ---
+    // Te breed voor één kolom: het block wordt breder in plaats van de inhoud te kappen.
+    const narrow = createBlocksSystem({ layout: "flow-grid" });
+    const narrowWaves = registerWaveElements(narrow, { fill: "native" });
+    const narrowField = document.createElement("div");
+    narrowField.style.cssText = `width:560px;height:${ROWS * ROW}px`;
+    document.body.appendChild(narrowField);
+    narrow.attach(narrowField).setGrid(8, ROWS);
+    const wide = await narrowWaves.add("readout", {}, { span: "auto" });
+    const letters = [...wide.content.querySelectorAll(".wv-readout span")].map((s) => s.getBoundingClientRect().width);
+    const cols = Number(getComputedStyle(wide.element).getPropertyValue("--block-span-columns"));
+    check("smalle kolommen: block groeit tot minstens één broncel (88px), letters niet samengedrukt",
+        wide.element.getBoundingClientRect().width >= 88 && cols > 1 && Math.min(...letters) >= 9,
+        `breedte=${Math.round(wide.element.getBoundingClientRect().width)} kolommen=${cols} smalste letter=${Math.min(...letters).toFixed(1)}px`);
+
+    // fitHeight faalt (verborgen veld): geen half block, geen lek.
+    const hidden = createBlocksSystem({ layout: "flow-grid" });
+    const hiddenWaves = registerWaveElements(hidden, { fill: "native" });
+    const hiddenField = document.createElement("div");
+    hiddenField.style.cssText = "display:none";
+    document.body.appendChild(hiddenField);
+    hidden.attach(hiddenField).setGrid(4, 10);
+    let hiddenError = null;
+    try { await hiddenWaves.add("gauge", {}, { span: "auto" }); } catch (error) { hiddenError = error; }
+    const leftover = hiddenField.querySelectorAll(".blocks-system-object").length;
+    check("mislukte fitHeight laat geen half block achter", hiddenError ? leftover === 0 && hiddenWaves.size === 0 : hiddenWaves.size === leftover,
+        `fout=${hiddenError ? "ja" : "nee"} blocks=${leftover} size=${hiddenWaves.size}`);
+
+    // accent zonder papier (schaalmodus) zou onzichtbare inkt geven: weigeren.
+    const scaleSystem = createBlocksSystem({ layout: "flow-grid" });
+    const scaleWaves = registerWaveElements(scaleSystem, { fill: "scale" });
+    const scaleField = document.createElement("div");
+    scaleField.style.cssText = "width:400px;height:300px";
+    document.body.appendChild(scaleField);
+    scaleSystem.attach(scaleField).setGrid(4, 3);
+    let accentRejected = false;
+    try { await scaleWaves.add("gauge", {}, { accent: "red" }); } catch { accentRejected = true; }
+    check("accent in schaalmodus weigert", accentRejected && scaleField.querySelectorAll(".blocks-system-object").length === 0);
+    const soft = getComputedStyle(document.body.appendChild(Object.assign(document.createElement("div"), { className: "wv-element" }))).getPropertyValue("--wv-soft").trim();
+    check("schaalmodus behoudt de oorspronkelijke scanlijnkleur", soft === "rgba(20, 20, 15, 0.55)" || soft === "rgba(20,20,15,0.55)", soft);
+} catch (error) {
+    check("geen uitzondering", false, error.stack || String(error));
+}
+
+const failed = results.filter((r) => !r.ok).length;
+document.title = failed ? `FAIL ${failed}/${results.length}` : `PASS ${results.length}`;
+</script>
+</body>
+</html>

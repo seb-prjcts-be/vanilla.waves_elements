@@ -25,12 +25,17 @@ deze laag levert enkel de inhoud.
 - p5-sketches (`ribbons`, `ghost-orbit`) **niet** hier: p5 breekt de regel "vanilla.waves als enige runtime-dependency". Die blijven een lokale adapter in buiilding_blocks_elements.
 - Bekende grens: `block.describe()`/kopiëren serialiseert live DOM; gebruik `system.snippet("wv-<id>")` voor een herbruikbare `data-wv`-marker.
 
-## Slim vullen
+## Vullen (Seb koos op 26/9: formaten = standaard)
+- **fill "native" (ware grootte)**: element 1:1 in bronkaartstijl (--wv-line 1px, Courier 9px caps, #14140f op #efeee8, accenten), block volgt inhoudshoogte via fitHeight, breedte minstens broncel 88px en nooit onder min-content (behalve bewust afkappende elementen zoals ticker). Demo ?fill=native.
+- **vast formaat + vulling01(x, y)** (vulling.mjs): tel-elementen krijgen aantallen, display-tekst een gepaste echte lettergrootte (fitDisplayFont, --wv-fit), vormen groeien via cqw/cqh met non-scaling-stroke. MIN_SPAN voor statusdot/boot/scramble. Meetopstelling tests/vulling.html: elk element × elk formaat. Les: tekst die pas in de eerste engine-frame verschijnt of van glyph wisselt (hazard, scramble) → vaste cellen/ruimte reserveren, anders meet de passing verkeerd.
+- **fill "scale"** (opt-in; was de eerste gepubliceerde standaard): hieronder. Nadeel gemeten: schaal 0,5–3,9× vernietigt lijnbreedte en microtekst.
 - **In het block**: de brug zet elk element in een vulframe (`.wv-element`), meet de inktvlek (de kinderen; de host zelf alleen als hij een rand/achtergrond tekent) en centreert en schaalt die met één transform tot 90% van het frame, max. 8×. Een ResizeObserver volgt span- en vensterwijzigingen. Nooit een scrollbalk.
 - **In het raster**: flow-grid plaatst bewust zonder `dense` (blocks.system README). `packOrder(items, columns)` kiest daarom een volgorde waarin de spans zonder gaten sluiten; enkel de laatste rij mag open blijven.
 
 ## Checks
 - `node tests/contract.mjs`
+- `~/AppData/Local/nvm/v24.18.0/node.exe tests/run-browser.mjs tests/vulling.html` (en `?max=6x4`, `?id=<element>&detail`)
+- `~/AppData/Local/nvm/v24.18.0/node.exe tests/run-browser.mjs tests/native.html` (ware grootte) en `tests/standalone.html` (README-voorbeeld)
 - `~/AppData/Local/nvm/v24.18.0/node.exe tests/run-browser.mjs` — Node ≥ 22 nodig voor WebSocket; de Node 18 op PATH faalt.
 - **Niet** `chrome --virtual-time-budget`: in virtuele tijd vuurt ResizeObserver maar één keer (vals rood op herschalen). De Browser-pane en een Chrome-tab op de achtergrond zijn `hidden`: daar draaien rAF en ResizeObserver niet.
 

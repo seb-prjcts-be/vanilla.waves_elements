@@ -122,4 +122,23 @@ assert.match(shiftOff, /data-shift="false"/, "shift:false wordt data-shift=\"fal
 const scanOff = adapter.snippet({ block: def, settings: { scan: false } });
 assert.doesNotMatch(scanOff, /data-scan/, "gewone booleaanse optie false: attribuut weglaten");
 
+// 9. vulling01(x, y): elk element heeft er een, puur (geen DOM), geldige waarden voor elk formaat.
+const { VULLING, MIN_SPAN, vulling01: fill01 } = await import("../vulling.mjs");
+assert.deepEqual(Object.keys(VULLING).sort(), [...ids].sort(), "vulling01 voor elk element");
+assert.doesNotMatch(read("vulling.mjs"), /document\.|window\.|getComputedStyle|querySelector/, "vulling.mjs is puur");
+for (const id of ids) {
+    for (let x = 1; x <= 6; x++) for (let y = 1; y <= 6; y++) {
+        const out = fill01(id, x, y);
+        for (const [key, value] of Object.entries(out)) {
+            if (key === "--wv-reserve") assert.ok(Number(value) >= 0 && Number(value) <= 40, `${id}: --wv-reserve 0–40`);
+            else if (key === "--wv-fit") assert.ok(Number(value) > 0.5 && Number(value) <= 1, `${id}: --wv-fit tussen 0,5 en 1`);
+            else if (key.startsWith("--wv-")) assert.match(value, /^\d+px$/, `${id} ${x}x${y}: ${key} in px`);
+            else assert.ok(Number.isInteger(Number(value)) && Number(value) >= 1, `${id} ${x}x${y}: ${key}=${value} geheel ≥ 1`);
+            assert.ok(ELEMENTS.find((e) => e.id === id).attributes.includes(key) || key.startsWith("--wv-"), `${id}: '${key}' is een bekende optie`);
+        }
+    }
+}
+for (const [id, [c, r]] of Object.entries(MIN_SPAN)) assert.ok(ids.includes(id) && c >= 1 && r >= 1, `MIN_SPAN ${id}`);
+assert.deepEqual(fill01("bestaat-niet", 2, 2), {}, "onbekend element: geen vulling");
+
 console.log(`contract ok — ${ELEMENTS.length} elementen, adapter 'wave-element'`);

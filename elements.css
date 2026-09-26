@@ -27,6 +27,42 @@
 }
 .wv-element > [data-wv] { position: relative; flex: 0 0 auto; }
 
+/* Lijn en gedempte tekst als tokens, zoals --wel-line / --wel-soft in de bron. */
+.wv-element { --wv-line: 1px; --wv-soft: rgba(20, 20, 15, 0.55); }
+
+/* ------------------------------------------------ fill: "native" (1:1, bronstijl)
+   Het element tekent op ware grootte; het block volgt zijn hoogte (fitHeight).
+   Kaartstijl uit de bron: warme inkt op papier, Courier 9px hoofdletters,
+   kolom met space-between zoals .wel-bd. */
+.wv-element--native {
+    --wv-ink: #14140f;
+    --wv-paper: #efeee8;
+    --wv-soft: rgba(20, 20, 15, 0.55);
+    height: auto;
+    min-height: 100%;
+    justify-content: space-between;
+    gap: 5px;
+    padding: 7px;
+    background: var(--wv-paper);
+    color: var(--wv-ink);
+    font-family: "Courier New", Courier, monospace;
+    font-size: 9px;
+    line-height: 1.25;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+.wv-element--native > [data-wv] { flex: 1 1 auto; }
+.wv-element--native .wv-loader { max-width: 100px; }   /* --wl-size in de bron */
+
+/* Accentkaarten uit de bron (geen zwart+geel: geel draagt blauwe inkt). */
+.wv-accent--invert  { --wv-ink: #efeee8; --wv-paper: #14140f; --wv-soft: rgba(239, 238, 232, 0.55); }
+.wv-accent--red     { --wv-ink: #fff; --wv-paper: rgb(255, 0, 0);   --wv-soft: rgba(255, 255, 255, 0.7); }
+.wv-accent--green   { --wv-ink: #000; --wv-paper: rgb(0, 255, 0);   --wv-soft: rgba(0, 0, 0, 0.55); }
+.wv-accent--blue    { --wv-ink: #fff; --wv-paper: rgb(0, 0, 255);   --wv-soft: rgba(255, 255, 255, 0.65); }
+.wv-accent--cyan    { --wv-ink: #000; --wv-paper: rgb(0, 255, 255); --wv-soft: rgba(0, 0, 0, 0.55); }
+.wv-accent--magenta { --wv-ink: #fff; --wv-paper: rgb(255, 0, 255); --wv-soft: rgba(255, 255, 255, 0.7); }
+.wv-accent--yellow  { --wv-ink: rgb(0, 0, 255); --wv-paper: rgb(255, 255, 0); --wv-soft: rgba(0, 0, 255, 0.6); }
+
 /* ---------------------------------------------------------------- loader */
 .wv-loader {
     --wv-loader-grid: 4;
@@ -109,7 +145,7 @@
     display: inline-flex;
     gap: 2px;
     padding: 2px 4px;
-    border: 1px solid var(--wv-ink);
+    border: var(--wv-line) solid var(--wv-ink);
     font-family: "Courier New", monospace;
     font-size: 15px;
     font-weight: 700;
@@ -142,7 +178,7 @@
     appearance: none; -webkit-appearance: none;
     width: 100%; height: 8px;
     background: transparent;
-    border: 1px solid var(--wv-ink);
+    border: var(--wv-line) solid var(--wv-ink);
 }
 .wv-levels progress::-webkit-progress-bar { background: transparent; }
 .wv-levels progress::-webkit-progress-value { background: var(--wv-ink); }
@@ -153,7 +189,7 @@
 .wv-radios input[type="radio"] { accent-color: var(--wv-ink); width: 13px; height: 13px; }
 
 /* ----------------------------------------------------------- ticker */
-.wv-ticker { overflow: hidden; width: 100%; white-space: nowrap; border-top: 1px solid var(--wv-ink); border-bottom: 1px solid var(--wv-ink); padding: 2px 0; }
+.wv-ticker { overflow: hidden; width: 100%; white-space: nowrap; border-top: var(--wv-line) solid var(--wv-ink); border-bottom: var(--wv-line) solid var(--wv-ink); padding: 2px 0; }
 .wv-ticker__t { display: inline-block; white-space: nowrap; font-family: "Courier New", monospace; font-size: 11px; will-change: transform; }
 
 /* ----------------------------------------------------------- scramble */
@@ -161,7 +197,7 @@
 
 /* ----------------------------------------------------------- counter */
 .wv-counter { display: flex; gap: 1px; font-family: "Courier New", monospace; font-weight: 700; }
-.wv-counter__col { overflow: hidden; height: 1.15em; border: 1px solid var(--wv-ink); padding: 0 2px; font-size: 18px; }
+.wv-counter__col { overflow: hidden; height: 1.15em; border: var(--wv-line) solid var(--wv-ink); padding: 0 2px; font-size: 18px; }
 .wv-counter__strip { display: flex; flex-direction: column; transition: transform 0.15s; }
 .wv-counter__strip span { height: 1.15em; line-height: 1.15em; text-align: center; }
 
@@ -179,7 +215,7 @@
 
 /* ----------------------------------------------------------- loadbar */
 .wv-loadbar { display: flex; flex-direction: column; gap: 3px; }
-.wv-loadbar__track { height: 12px; border: 1px solid var(--wv-ink); }
+.wv-loadbar__track { height: 12px; border: var(--wv-line) solid var(--wv-ink); }
 .wv-loadbar__fill { height: 100%; width: 0; background: var(--wv-ink); }
 .wv-loadbar__pct { font-family: "Courier New", monospace; font-size: 10px; text-align: right; }
 
@@ -202,8 +238,8 @@
 .wv-statusdot__row b { font-weight: 700; }
 
 /* ----------------------------------------------------------- scan */
-.wv-scan { position: relative; flex: 1; min-height: 48px; overflow: hidden; border: 1px solid var(--wv-ink); }
-.wv-scan::before { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(0deg, transparent 0 2px, rgba(20,20,15,0.55) 2px 3px); }
+.wv-scan { position: relative; flex: 1; min-height: 48px; overflow: hidden; border: var(--wv-line) solid var(--wv-ink); }
+.wv-scan::before { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(0deg, transparent 0 2px, var(--wv-soft) 2px 3px); }
 .wv-scan__bar { position: absolute; left: 0; right: 0; height: 3px; background: var(--wv-ink); }
 .wv-scan__lab { position: absolute; left: 5px; bottom: 4px; font-family: Oswald, "Bebas Neue", "Arial Narrow", Helvetica, sans-serif; font-size: 18px; font-weight: 700; }
 
@@ -211,8 +247,8 @@
 .wv-crop { position: relative; flex: 1; min-height: 44px; }
 .wv-crop__m { position: absolute; width: 10px; height: 10px; }
 .wv-crop__m::before, .wv-crop__m::after { content: ""; position: absolute; background: var(--wv-ink); }
-.wv-crop__m::before { width: 10px; height: 1px; }
-.wv-crop__m::after { width: 1px; height: 10px; }
+.wv-crop__m::before { width: 10px; height: var(--wv-line); }
+.wv-crop__m::after { width: var(--wv-line); height: 10px; }
 .wv-crop__m0 { top: 0; left: 0; }
 .wv-crop__m1 { top: 0; right: 0; } .wv-crop__m1::before { right: 0; } .wv-crop__m1::after { right: 0; }
 .wv-crop__m2 { bottom: 0; left: 0; } .wv-crop__m2::before { bottom: 0; } .wv-crop__m2::after { bottom: 0; }
@@ -222,7 +258,7 @@
 /* ----------------------------------------------------------- spectable */
 .wv-spectable { display: flex; flex-direction: column; gap: 3px; font-family: "Courier New", monospace; font-size: 9px; }
 .wv-spectable__row { display: flex; align-items: baseline; gap: 4px; }
-.wv-spectable__lead { flex: 1; border-bottom: 1px dotted var(--wv-ink); transform: translateY(-2px); }
+.wv-spectable__lead { flex: 1; border-bottom: var(--wv-line) dotted var(--wv-ink); transform: translateY(-2px); }
 .wv-spectable__row b { font-weight: 700; }
 
 /* ----------------------------------------------------------- arrows */
@@ -233,8 +269,8 @@
 .wv-dimension { display: flex; flex-direction: column; gap: 3px; align-items: center; }
 .wv-dimension__val { font-family: "Courier New", monospace; font-weight: 700; font-size: 14px; }
 .wv-dimension__line { display: flex; align-items: center; width: 100%; }
-.wv-dimension__line > i { width: 1px; height: 9px; background: var(--wv-ink); flex: none; }
-.wv-dimension__bar { flex: 1; height: 1px; background: var(--wv-ink); }
+.wv-dimension__line > i { width: var(--wv-line); height: 9px; background: var(--wv-ink); flex: none; }
+.wv-dimension__bar { flex: 1; height: var(--wv-line); background: var(--wv-ink); }
 
 /* ----------------------------------------------------------- nodes */
 .wv-nodes { display: block; width: 100%; height: 56px; }
@@ -260,7 +296,7 @@
 /* ----------------------------------------------------------- boot */
 .wv-boot { display: flex; flex-direction: column; gap: 2px; font-family: "Courier New", monospace; font-size: 9px; }
 .wv-boot__row { display: flex; align-items: center; gap: 6px; opacity: 0.2; }
-.wv-boot__row i { width: 6px; height: 6px; border: 1px solid var(--wv-ink); flex: none; }
+.wv-boot__row i { width: 6px; height: 6px; border: var(--wv-line) solid var(--wv-ink); flex: none; }
 .wv-boot__row span { flex: 1; }
 .wv-boot__row b::after { content: "····"; }
 .wv-boot__row.on { opacity: 1; }
@@ -271,5 +307,60 @@
 
 /* ----------------------------------------------------------- keypad */
 .wv-keypad { display: grid; grid-template-columns: repeat(var(--wv-mx, 4), 1fr); gap: 3px; }
-.wv-keypad b { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border: 1px solid var(--wv-ink); font-family: "Courier New", monospace; font-size: 10px; font-weight: 700; opacity: 0.4; }
+.wv-keypad b { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border: var(--wv-line) solid var(--wv-ink); font-family: "Courier New", monospace; font-size: 10px; font-weight: 700; opacity: 0.4; }
 .wv-keypad b.on { background: var(--wv-ink); color: var(--wv-paper); opacity: 1; }
+
+/* ------------------------------------------ vast formaat (native + opgegeven span)
+   vulling01(x, y) kiest aantallen; deze laag laat vormen, velden en display-letters
+   het formaat vullen via container-eenheden. Lijnen blijven 1px (non-scaling-stroke),
+   microtekst blijft 9px. Nooit een transform, en nooit display op de node zelf
+   overschrijven: veel renderers stijlen hun node (readout, arrows, statusdot, …). */
+.wv-element--vast { height: 100%; min-height: 0; container-type: size; overflow: hidden; justify-content: center; }
+.wv-element--vast > [data-wv] { flex: 0 0 auto; min-height: 0; }
+.wv-element--vast svg * { vector-effect: non-scaling-stroke; }
+
+/* vormen: zo groot als de kleinste as toelaat, gecentreerd */
+.wv-element--vast .wv-loader { max-width: none; width: min(100cqw, 100cqh); height: auto; padding: 0; margin: 0 auto;
+    font-size: calc(min(100cqw, 100cqh) / var(--wv-loader-grid) * 0.8); }
+.wv-element--vast .wv-loader span { font-size: inherit; }
+.wv-element--vast .wv-reticle { display: block; width: min(100cqw, 100cqh); height: auto; aspect-ratio: 1; margin: 0 auto; }
+.wv-element--vast .wv-gauge__svg { max-width: none; width: min(100cqw, calc(100cqh * 60 / 38)); margin: 0 auto; }
+.wv-element--vast .wv-sigil,
+.wv-element--vast .wv-globe { max-width: none; width: min(100cqw, 100cqh); margin: 0 auto; }
+.wv-element--vast .wv-matrix,
+.wv-element--vast .wv-dither,
+.wv-element--vast .wv-keypad,
+.wv-element--vast .wv-checks { max-width: none; width: min(100cqw, 100cqh); margin: 0 auto; }
+.wv-element--vast .wv-keypad { aspect-ratio: 1; grid-auto-rows: 1fr; }
+
+/* velden: vullen de hoogte */
+.wv-element--vast .wv-barcode,
+.wv-element--vast .wv-bars,
+.wv-element--vast .wv-nodes { height: 100cqh; }
+.wv-element--vast > [data-wv="wave"] { min-height: 0; height: 100cqh; }
+.wv-element--vast .wv-wave { height: 100%; }
+.wv-element--vast > .wv-scan,
+.wv-element--vast > .wv-crop { height: 100cqh; min-height: 0; box-sizing: border-box; }
+.wv-element--vast .wv-loadbar__track { height: var(--wv-track, 12px); box-sizing: border-box; }
+
+/* display-letters en vaste-verhouding-elementen: grootte uit vulling01, gecentreerd */
+.wv-element--vast > .wv-readout,
+.wv-element--vast > .wv-counter,
+.wv-element--vast > .wv-segment,
+.wv-element--vast > .wv-arrows,
+.wv-element--vast > .wv-hazard,
+.wv-element--vast > .wv-rgbsplit { align-self: center; }
+.wv-element--vast > .wv-readout { font-size: var(--wv-font, 15px); }
+.wv-element--vast .wv-counter__col { font-size: var(--wv-font, 18px); }
+.wv-element--vast .wv-seg { height: var(--wv-seg, 42px); width: calc(var(--wv-seg, 42px) * 26 / 42); }
+.wv-element--vast > .wv-arrows { font-size: var(--wv-font, 16px); }
+.wv-element--vast .wv-dimension__val { font-size: var(--wv-label-font, 14px); }
+.wv-element--vast > .wv-rgbsplit { font-size: var(--wv-font, 30px); }
+.wv-element--vast > .wv-scramble { font-size: var(--wv-font, 15px); text-align: center; white-space: nowrap; word-break: normal; }   /* één regel: nooit middenin een woord breken */
+.wv-element--vast > .wv-scramble span { display: inline-block; width: 0.68em; height: 1.25em; line-height: 1.25em; vertical-align: top; overflow: hidden; text-align: center; }   /* vaste cel: lege of brede tekens (▮) verschuiven niets */
+.wv-element--vast .wv-hazard__ic { font-size: var(--wv-font, 30px); display: inline-flex; width: 1.2em; height: 1.2em; align-items: center; justify-content: center; line-height: 1; }   /* vast vak: wisselende glyphs verschuiven niets */
+.wv-element--vast > .wv-hazard { flex-wrap: wrap; justify-content: center; row-gap: 2px; }   /* smal: label onder het icoon */
+.wv-element--vast .wv-hazard small { display: inline-block; min-width: 7ch; min-height: 1.25em; }   /* label bestaat pas na de eerste frame: ruimte vooraf reserveren */
+.wv-element--vast .wv-ticker__t { font-size: var(--wv-ticker-font, 11px); }
+.wv-element--vast .wv-scan__lab,
+.wv-element--vast .wv-crop__lab { font-size: var(--wv-label-font, 18px); }

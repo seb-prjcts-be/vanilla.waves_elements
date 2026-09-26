@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>RUNNING</title>
+<link rel="stylesheet" href="../../blocks.system/blocks.system.css">
+<link rel="stylesheet" href="../elements.css">
+<style>body { margin: 0; font: 12px monospace; } pre { padding: 1rem; }</style>
+</head>
+<body>
+<div id="stage"></div>
+<pre id="log"></pre>
+<script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
+<script type="module">
+// Meetopstelling vulling01: elk element × elk formaat (1–4 kolommen × 1–3 rijen) in een echt
+// blocks.system-block op broncelmaat. Per geval: afgekapt? samengedrukt? hoeveel gevuld?
+import { createBlocksSystem } from "../../blocks.system/blocks.system.mjs";
+import { registerWaveElements } from "../blocks.mjs";
+import { ASPECT_BOUND, CELL, GAP, MIN_SPAN } from "../vulling.mjs";
+
+const log = document.querySelector("#log");
+const FORMATS = [];
+const [MAX_X, MAX_Y] = (new URLSearchParams(location.search).get("max") || "4x3").split("x").map(Number);
+for (let y = 1; y <= MAX_Y; y++) for (let x = 1; x <= MAX_X; x++) FORMATS.push([x, y]);
+const MIN_MAIN = 0.75;   // langste as minstens 75% gevuld
+const MIN_CROSS = 0.3;   // kortste as minstens 30% gevuld (geen verloren strook)
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const only = new URLSearchParams(location.search).get("id");
+// Celmaat van het testraster: standaard de broncel, maar vulling moet elke kolommaat aankunnen.
+const CELL_T = Number(new URLSearchParams(location.search).get("cell")) || CELL;
+// Microtekst uit de bron: deze regels blijven 9px, in elk formaat.
+const MICRO = { statusdot: ".wv-statusdot__row", spectable: ".wv-spectable__row", boot: ".wv-boot__row" };
+const fontOf = (node) => parseFloat(node.style.getPropertyValue("--wv-font")) || null;
+
+function paintsItself(node) {
+    const s = getComputedStyle(node);
+    return parseFloat(s.borderTopWidth) > 0 || s.backgroundColor !== "rgba(0, 0, 0, 0)" || s.backgroundImage !== "none";
+}
+function ink(node) {
+    let boxes;
+    if (paintsItself(node)) boxes = [node.getBoundingClientRect()];
+    else if (node.children.length) boxes = [...node.children].map((el) => el.getBoundingClientRect());
+    else { const range = document.createRange(); range.selectNodeContents(node); boxes = [range.getBoundingClientRect()]; }
+    boxes = boxes.filter((r) => r.width || r.height);
+    if (!boxes.length) return null;
+    return {
+        left: Math.min(...boxes.map((r) => r.left)), right: Math.max(...boxes.map((r) => r.right)),
+        top: Math.min(...boxes.map((r) => r.top)), bottom: Math.max(...boxes.map((r) => r.bottom)),
+    };
+}
+function measure(block, id) {
+    const frame = block.content.querySelector(".wv-element");
+    const node = frame.firstElementChild;
+    const fs = getComputedStyle(frame);
+    const f = frame.getBoundingClientRect();
+    const box = {
+        left: f.left + parseFloat(fs.paddingLeft), right: f.right - parseFloat(fs.paddingRight),
+        top: f.top + parseFloat(fs.paddingTop), bottom: f.bottom - parseFloat(fs.paddingBottom),
+    };
+    const W = box.right - box.left, H = box.bottom - box.top;
+    const k = ink(node);
+    if (!k) return { verdict: "leeg", W, H };
+    const clipped = k.left < box.left - 1 || k.right > box.right + 1 || k.top < box.top - 1 || k.bottom > box.bottom + 1
+        || frame.scrollHeight > frame.clientHeight + 1 || block.content.scrollHeight > block.content.clientHeight + 1;
+    node.style.width = "min-content";
+    const minContent = node.getBoundingClientRect().width;
+    node.style.width = "";
+    // Bewust afkappende inhoud (overflow:hidden + nowrap, zoals de ticker) telt niet als pletten.
+    const clipsByDesign = [...node.querySelectorAll("*")].some((el) => {
+        const s = getComputedStyle(el);
+        return s.overflow === "hidden" && s.whiteSpace === "nowrap";
+    });
+    const crushed = !clipsByDesign && minContent > W + 1;
+    // Gereserveerde ruimte voor bewegende lagen (--wv-reserve, rgbsplit ±6px) hoort bij de voetafdruk.
+    const reserve = parseFloat(node.style.getPropertyValue("--wv-reserve")) || 0;
+    const fw = Math.min(1, (Math.min(k.right, box.right) - Math.max(k.left, box.left) + reserve) / W);
+    const fh = (Math.min(k.bottom, box.bottom) - Math.max(k.top, box.top)) / H;
+    const main = Math.max(fw, fh), cross = Math.min(fw, fh);
+    const small = main < MIN_MAIN || (!ASPECT_BOUND.has(id) && cross < MIN_CROSS);
+    const over = { l: Math.round(box.left - k.left), r: Math.round(k.right - box.right), t: Math.round(box.top - k.top), b: Math.round(k.bottom - box.bottom), scroll: Math.round(frame.scrollHeight - frame.clientHeight), cscroll: Math.round(block.content.scrollHeight - block.content.clientHeight), min: Math.round(minContent) };
+    // Ware grootte: geen transform op frame of node; microtekst exact 9px.
+    const scaled = [frame, node].some((el) => getComputedStyle(el).transform !== "none");
+    const micro = MICRO[id] ? [...node.querySelectorAll(MICRO[id])].some((row) => getComputedStyle(row).fontSize !== "9px") : false;
+    const verdict = scaled ? "SCHAAL" : micro ? "MICRO" : clipped ? "KAPT" : crushed ? "PLET" : small ? "klein" : "ok";
+    return { verdict, fw, fh, W, H, over };
+}
+
+const table = {};
+let bad = 0;
+try {
+    for (const [x, y] of FORMATS) {
+        const stage = document.createElement("div");
+        stage.style.cssText = `width:${x * CELL_T + (x - 1) * GAP}px;height:${y * CELL_T + (y - 1) * GAP}px`;
+        document.querySelector("#stage").appendChild(stage);
+        const system = createBlocksSystem({ layout: "flow-grid", inversionVariation: 0, colorVariation: 0 });
+        const waves = registerWaveElements(system, { fill: "native" });
+        system.attach(stage).setGrid(x, y);
+        for (const entry of waves.elements) {
+            if (only && entry.id !== only) continue;
+            const min = MIN_SPAN[entry.id];
+            if (min && (x < min[0] || y < min[1])) {
+                // Onder het minimumformaat: de brug moet duidelijk weigeren (raster is precies x breed).
+                let refused = false;
+                try { (await waves.add(entry.id, {}, { span: [x, y] })).remove(); } catch (e) { refused = /minstens/.test(e.message); }
+                (table[entry.id] ||= {})[`${x}x${y}`] = { verdict: refused ? "ok" : "GEEN-MIN", min: true };
+                if (!refused) bad++;
+                continue;
+            }
+            let block;
+            try {
+                block = await waves.add(entry.id, {}, { span: [x, y] });
+            } catch (error) {
+                // Past het element op ware grootte niet en kan het testraster (precies x × y) niet
+                // groeien, dan moet de brug duidelijk weigeren: dat is correct gedrag.
+                if (!/past niet/.test(error.message)) throw error;
+                (table[entry.id] ||= {})[`${x}x${y}`] = { verdict: "ok", min: true };
+                continue;
+            }
+            await wait(150);
+            // Passen moet idempotent zijn: een resize heen en terug mag de letter niet laten krimpen.
+            const node = block.content.querySelector("[data-wv]");
+            const before = fontOf(node);
+            stage.style.width = `${x * CELL_T + (x - 1) * GAP + 1}px`;
+            await wait(60);
+            stage.style.width = `${x * CELL_T + (x - 1) * GAP}px`;
+            await wait(120);
+            const after = fontOf(node);
+            const m = measure(block, entry.id);
+            if (m.verdict === "ok" && before && after < before * 0.95) Object.assign(m, { verdict: "KRIMP", krimp: `${before}→${after}` });
+            (table[entry.id] ||= {})[`${x}x${y}`] = m;
+            if (m.verdict !== "ok") bad++;
+            block.remove();
+        }
+        stage.remove();
+    }
+    const head = "element     " + FORMATS.map(([x, y]) => `${x}x${y}`.padEnd(6)).join("");
+    const rows = Object.entries(table).map(([id, cells]) =>
+        id.padEnd(12) + FORMATS.map(([x, y]) => {
+            const m = cells[`${x}x${y}`];
+            return (m.verdict === "ok" ? (m.min ? "min" : ".") : m.verdict).padEnd(6);
+        }).join(""));
+    const detail = new URLSearchParams(location.search).has("detail")
+        ? Object.entries(table).flatMap(([id, cells]) => Object.entries(cells).filter(([, m]) => m.verdict !== "ok")
+            .map(([f, m]) => `${id} ${f} ${m.verdict}${m.krimp ? " " + m.krimp : ""} W=${Math.round(m.W)} H=${Math.round(m.H)} fw=${m.fw?.toFixed(2)} fh=${m.fh?.toFixed(2)} ${JSON.stringify(m.over)}`)).join("\n")
+        : "";
+    log.textContent = `${head}\n${rows.join("\n")}\n\n${detail}\n\n${bad} van ${Object.keys(table).length * FORMATS.length} gevallen niet ok`;
+    window.__vulling = table;
+} catch (error) {
+    log.textContent += "\nFOUT " + (error.stack || error);
+    bad = -1;
+}
+document.title = bad === 0 ? "PASS" : `FAIL ${bad}`;
+</script>
+</body>
+</html>

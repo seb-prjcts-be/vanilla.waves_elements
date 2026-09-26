@@ -12,7 +12,8 @@ try {
     await harness.protocol.send("Page.navigate", { url });
     const started = Date.now();
     let title = "";
-    while (Date.now() - started < 30000) {
+    const limit = Number(process.env.RUN_BROWSER_TIMEOUT_MS) || 600000;
+    while (Date.now() - started < limit) {
         await new Promise((resolve) => setTimeout(resolve, 250));
         const { result } = await harness.protocol.send("Runtime.evaluate", { expression: "document.title" });
         title = result.value || "";

@@ -11,13 +11,19 @@
     header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; margin-bottom: 16px; }
     h1 { font-size: 16px; margin: 0; font-weight: 600; }
     header p { margin: 0; max-width: 60ch; }
-    button { font: inherit; border: 1px solid currentColor; background: none; padding: 2px 8px; cursor: pointer; }
+    button, header a { font: inherit; color: inherit; border: 1px solid currentColor; background: none; padding: 2px 8px; cursor: pointer; text-decoration: none; }
+    header a[aria-current] { background: #14140f; color: #efeee8; }
 </style>
 </head>
 <body>
 <header>
     <h1>vanilla.waves_elements → blocks.system</h1>
-    <p>Elk block hieronder is gewone blocks.system-layout; de inhoud komt uit de vanilla.waves-engine. Sluiten zet een block in de dock, niet weg.</p>
+    <nav>
+        <a href="./" data-fill="formaten">formaten</a>
+        <a href="?fill=native" data-fill="native">hoogte volgt inhoud</a>
+        <a href="?fill=scale" data-fill="scale">schalen</a>
+    </nav>
+    <p id="uitleg"></p>
     <button type="button" id="reseed">nieuwe seeds</button>
 </header>
 <div id="field"></div>
@@ -25,29 +31,103 @@
 <script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
 <script type="module">
 import { createBlocksSystem } from "../blocks.system/blocks.system.mjs";
-import { packOrder, registerWaveElements } from "./blocks.mjs";
+import { ACCENTS, packOrder, registerWaveElements } from "./blocks.mjs";
 
-const system = createBlocksSystem({ layout: "flow-grid" });
-const waves = registerWaveElements(system);
+const requestedFill = new URLSearchParams(location.search).get("fill");
+const fillMode = ["native", "scale"].includes(requestedFill) ? requestedFill : "formaten";   // standaard: formaten
+document.querySelector(`[data-fill="${fillMode}"]`).setAttribute("aria-current", "page");
+document.querySelector("#uitleg").textContent = fillMode === "formaten"
+    ? "Formaten: elk element in een ander vast formaat; vulling01(x, y) kiest de opbouw — ware grootte, geen schaal."
+    : fillMode === "native"
+    ? "Ware grootte: elk element tekent 1:1 (1px lijnen, 9px microtekst, bronpalet) en het block volgt zijn hoogte."
+    : "Schalen: elk element wordt gecentreerd en geschaald tot het zijn block vult.";
 
-// Slim vullen: volgorde zonder gaten; flow-grid deelt de veldhoogte over de rijen,
-// dus het veld krijgt rijen × (kolombreedte × 0,75) en schaalt mee met het venster.
 const COLUMNS = 8;
-const order = packOrder(waves.elements, COLUMNS);
-const cells = order.reduce((sum, entry) => sum + entry.span[0] * entry.span[1], 0);
-const rows = Math.ceil(cells / COLUMNS);
 const field = document.querySelector("#field");
-field.style.height = `calc(${rows} * (100vw - 32px) / ${COLUMNS} * 0.75)`;
-system.attach(field);
-system.setGrid(COLUMNS, rows);
+const native = fillMode !== "scale";
+const formats = fillMode === "formaten";
+const system = createBlocksSystem(native
+    ? { layout: "flow-grid", inversionVariation: 0, colorVariation: 0 }
+    : { layout: "flow-grid" });
+const waves = registerWaveElements(system, { fill: native ? "native" : "scale" });
+// Formaten: een vaste reeks, zodat elk element meerdere maten laat zien over de elementen heen.
+const FORMATS = [[1, 1], [2, 1], [1, 2], [2, 2], [3, 1], [3, 2], [1, 3], [2, 3]];
+
+// Accenten in de volgorde van de bron (micrographic-grid): gewoon, invert, blauw, rood, …
+const CYCLE = ["", "invert", "blue", "red", "cyan", "magenta", "green", "yellow"];
+const ROW = 12;          // native: fijne rijmaat, zodat hoogtes de inhoud volgen
+const MAX_ROWS = 400;
+
+function layoutGrid(rows, pitch) {
+    field.style.height = `${rows * pitch}px`;
+    if (system.field) system.setGrid(COLUMNS, rows);
+    else system.attach(field).setGrid(COLUMNS, rows);
+}
 
 const live = [];
 async function fill(randomSeeds) {
     for (const block of live.splice(0)) block.remove();
-    for (const entry of order) {
-        const settings = randomSeeds ? { seed: String(Math.floor(Math.random() * 10000)) } : {};
-        live.push(await waves.add(entry.id, settings));
+    if (!native) {
+        const order = packOrder(waves.elements, COLUMNS);
+        const cells = order.reduce((sum, entry) => sum + entry.span[0] * entry.span[1], 0);
+        const rows = Math.ceil(cells / COLUMNS);
+        field.style.height = `calc(${rows} * (100vw - 32px) / ${COLUMNS} * 0.75)`;
+        if (!system.field) system.attach(field);
+        system.setGrid(COLUMNS, rows);
+        for (const entry of order) live.push(await waves.add(entry.id, seedOf(randomSeeds)));
+        return;
     }
+    if (formats) {
+        // Broncellen: 88px + 6px tussenruimte; volgorde vooraf gepakt op de vaste formaten.
+        const PITCH = 94;
+        const items = waves.elements.map((entry, n) => ({ id: entry.id, n, span: FORMATS[n % FORMATS.length] }));
+        const order = packOrder(items, COLUMNS);
+        const rows = Math.ceil(order.reduce((s, it) => s + it.span[0] * it.span[1], 0) / COLUMNS) + 2;
+        field.style.width = `${COLUMNS * PITCH - 6}px`;
+        field.style.height = `${rows * PITCH - 6}px`;
+        if (!system.field) system.attach(field);
+        system.setGrid(COLUMNS, rows);
+        for (const it of order) {
+            const accent = CYCLE[it.n % CYCLE.length];
+            live.push(await waves.add(it.id, seedOf(randomSeeds), { span: it.span, ...(accent ? { accent } : {}) }));
+        }
+        const bottom = Math.max(...live.map((b) => b.element.getBoundingClientRect().bottom));
+        const used = Math.ceil((bottom - field.getBoundingClientRect().top + 6) / PITCH);
+        field.style.height = `${used * PITCH - 6}px`;
+        system.setGrid(COLUMNS, used);
+        return;
+    }
+    // 1. Ruim raster, elk element op ware grootte; fitHeight bepaalt de rijen.
+    layoutGrid(MAX_ROWS, ROW);
+    let i = 0;
+    for (const entry of waves.elements) {
+        const accent = CYCLE[i++ % CYCLE.length];
+        live.push(await waves.add(entry.id, seedOf(randomSeeds), { span: "auto", ...(accent ? { accent } : {}) }));
+    }
+    await document.fonts.ready;
+    arrange();
+}
+
+// Meten → pakken → inkorten. Na een resize opnieuw vanaf een ruim raster, anders
+// persen de impliciete rijen van flow-grid alles samen.
+function arrange() {
+    layoutGrid(MAX_ROWS, ROW);
+    system.fitHeight();
+    const layout = system.exportLayout();
+    const packed = packOrder(layout.blocks.map((b) => ({ ...b, span: [...b.span] })), COLUMNS);
+    system.restoreLayout({ ...layout, blocks: packed });
+    const top = field.getBoundingClientRect().top;
+    const bottom = Math.max(...live.map((b) => b.element.getBoundingClientRect().bottom));
+    layoutGrid(Math.ceil((bottom - top) / ROW), ROW);
+}
+let resizeTimer = 0;
+addEventListener("resize", () => {
+    if (!native || formats) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(arrange, 150);
+});
+function seedOf(random) {
+    return random ? { seed: String(Math.floor(Math.random() * 10000)) } : {};
 }
 await fill(false);
 document.querySelector("#reseed").addEventListener("click", () => fill(true));

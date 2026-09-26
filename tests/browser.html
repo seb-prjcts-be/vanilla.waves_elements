@@ -26,7 +26,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 try {
     const system = createBlocksSystem({ layout: "flow-grid" });
-    const waves = registerWaveElements(system);
+    const waves = registerWaveElements(system, { fill: "scale" });   // deze test dekt de schaalmodus
     system.attach("#field").setGrid(6, 4);
 
     check("adapter en definities", system.listAdapters().includes("wave-element") && system.list({ adapter: "wave-element" }).length === 32);
