@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="nl">
+<head><meta charset="utf-8"><title>RUNNING</title><link rel="stylesheet" href="../elements.css"></head>
+<body>
+<!-- Test het README-voorbeeld "Zonder blocks.system" letterlijk: markup, bundle, registerElements(), init(). -->
+<div data-wv="gauge" data-seed="7"></div>
+<pre id="log"></pre>
+<script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
+<script type="module">
+import { registerElements } from "../elements.mjs";
+registerElements();
+VanillaWaves.init();
+await new Promise((resolve) => setTimeout(resolve, 500));
+const node = document.querySelector('[data-wv="gauge"]');
+const svgs = node.querySelectorAll("svg").length;
+const ok = node.classList.contains("wv--ready") && svgs === 1;
+document.querySelector("#log").textContent = `${ok ? "PASS" : "FAIL"}  README-voorbeeld zonder blocks.system — svg's=${svgs}`;
+document.title = ok ? "PASS 1" : "FAIL 1/1";
+</script>
+</body>
+</html>

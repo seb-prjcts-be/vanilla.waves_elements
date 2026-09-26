@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>vanilla.waves_elements in blocks.system</title>
+<link rel="stylesheet" href="../blocks.system/blocks.system.css">
+<link rel="stylesheet" href="elements.css">
+<style>
+    body { margin: 0; padding: 16px; font: 14px/1.4 "IBM Plex Mono", ui-monospace, monospace; background: #efeee8; color: #14140f; }
+    header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline; margin-bottom: 16px; }
+    h1 { font-size: 16px; margin: 0; font-weight: 600; }
+    header p { margin: 0; max-width: 60ch; }
+    button { font: inherit; border: 1px solid currentColor; background: none; padding: 2px 8px; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+    <h1>vanilla.waves_elements → blocks.system</h1>
+    <p>Elk block hieronder is gewone blocks.system-layout; de inhoud komt uit de vanilla.waves-engine. Sluiten zet een block in de dock, niet weg.</p>
+    <button type="button" id="reseed">nieuwe seeds</button>
+</header>
+<div id="field"></div>
+
+<script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
+<script type="module">
+import { createBlocksSystem } from "../blocks.system/blocks.system.mjs";
+import { packOrder, registerWaveElements } from "./blocks.mjs";
+
+const system = createBlocksSystem({ layout: "flow-grid" });
+const waves = registerWaveElements(system);
+
+// Slim vullen: volgorde zonder gaten; flow-grid deelt de veldhoogte over de rijen,
+// dus het veld krijgt rijen × (kolombreedte × 0,75) en schaalt mee met het venster.
+const COLUMNS = 8;
+const order = packOrder(waves.elements, COLUMNS);
+const cells = order.reduce((sum, entry) => sum + entry.span[0] * entry.span[1], 0);
+const rows = Math.ceil(cells / COLUMNS);
+const field = document.querySelector("#field");
+field.style.height = `calc(${rows} * (100vw - 32px) / ${COLUMNS} * 0.75)`;
+system.attach(field);
+system.setGrid(COLUMNS, rows);
+
+const live = [];
+async function fill(randomSeeds) {
+    for (const block of live.splice(0)) block.remove();
+    for (const entry of order) {
+        const settings = randomSeeds ? { seed: String(Math.floor(Math.random() * 10000)) } : {};
+        live.push(await waves.add(entry.id, settings));
+    }
+}
+await fill(false);
+document.querySelector("#reseed").addEventListener("click", () => fill(true));
+</script>
+</body>
+</html>

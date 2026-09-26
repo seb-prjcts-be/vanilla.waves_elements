@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>RUNNING</title>
+<link rel="stylesheet" href="../../blocks.system/blocks.system.css">
+<link rel="stylesheet" href="../elements.css">
+<style>body { margin: 0; font: 14px monospace; } #field { width: 900px; } pre { padding: 1rem; }</style>
+</head>
+<body>
+<div id="field"></div>
+<pre id="log"></pre>
+<script src="https://cdn.jsdelivr.net/gh/seb-prjcts-be/vanilla.waves@v0.3.1/vanilla.waves.min.js"></script>
+<script type="module">
+// Browsertest: echte blocks.system (lokale canonieke checkout) + echte vanilla.waves-engine.
+import { createBlocksSystem } from "../../blocks.system/blocks.system.mjs";
+import { registerWaveElements } from "../blocks.mjs";
+
+const log = document.querySelector("#log");
+const results = [];
+function check(name, ok, info = "") {
+    results.push({ name, ok });
+    log.textContent += `${ok ? "PASS" : "FAIL"}  ${name}${info ? "  — " + info : ""}\n`;
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+try {
+    const system = createBlocksSystem({ layout: "flow-grid" });
+    const waves = registerWaveElements(system);
+    system.attach("#field").setGrid(6, 4);
+
+    check("adapter en definities", system.listAdapters().includes("wave-element") && system.list({ adapter: "wave-element" }).length === 32);
+
+    const barcode = await waves.add("barcode", { seed: 21, bars: 40, scan: true });
+    const node = barcode.content.querySelector(':scope > .wv-element > [data-wv="barcode"]');
+    check("barcode gemount in een vulframe, direct kind van block.content", !!node);
+    check("engine heeft het element opgepakt", node?.classList.contains("wv--ready"));
+    check("barcode tekent 40 staven", node?.querySelectorAll(".wv-barcode i").length === 40);
+    const layout = system.exportLayout();
+    const spanOf = (id) => JSON.stringify((layout.blocks || layout.entries || layout).find?.((b) => b.id === id)?.span);
+    check("standaard-span 2×1 toegepast", spanOf(barcode.id) === "[2,1]", spanOf(barcode.id));
+
+    const bars = await waves.add("bars", { seed: 7 });
+    const loader = await waves.add("loader", { seed: 13, text: "WAVES" });
+    const firstBar = bars.content.querySelector(".wv-bars i");
+    const before = firstBar.style.transform;
+    await wait(400);
+    check("bars animeren via de gedeelde engine-loop", firstBar.style.transform !== before, `${before} → ${firstBar.style.transform}`);
+    const letters = [...loader.content.querySelectorAll(".wv-loader span")].map((s) => s.textContent).join("");
+    check("loader toont enkel tekens uit de tekst", letters.length === 16 && /^[WAVES]+$/.test(letters), letters);
+
+    barcode.dock(true);
+    check("dock bewaart de inhoud (omkeerbaar sluiten)", barcode.docked && node.isConnected && node.children.length > 0);
+    barcode.dock(false);
+    check("undock zet hem terug", !barcode.docked && node.classList.contains("wv--ready"));
+
+    check("brug telt drie live elementen", waves.size === 3, String(waves.size));
+    const barsNode = bars.content.querySelector("[data-wv]");
+    bars.remove();
+    check("remove() ruimt engine-entry op", waves.size === 2 && barsNode.children.length === 0 && !barsNode.classList.contains("wv--ready"),
+        `size=${waves.size} kinderen=${barsNode.children.length}`);
+
+    const snippet = system.snippet("wv-barcode", { seed: 21 });
+    check("snippet is een data-wv-marker", /data-wv="barcode"/.test(snippet) && /data-seed="21"/.test(snippet));
+
+    let rejected = false;
+    try { await waves.add("bestaat-niet"); } catch { rejected = true; }
+    check("onbekend element weigert", rejected);
+
+    // --- slim vullen: elk element vult zijn block, zonder scrollbalk ---
+    const all = [];
+    for (const entry of waves.elements) {
+        if (["barcode", "loader"].includes(entry.id)) continue;   // staan al in het veld
+        all.push(await waves.add(entry.id, {}, { span: [1, 1] }));
+    }
+    const big = await waves.add("reticle", {}, { span: [2, 2] });
+    await wait(300);
+    const live = [barcode, loader, ...all, big];
+    const scrolling = live.filter((b) => b.content.scrollHeight > b.content.clientHeight + 1 || b.content.scrollWidth > b.content.clientWidth + 1)
+        .map((b) => b.element.querySelector("[data-wv]")?.dataset.wv);
+    check("geen enkel element laat zijn block scrollen", scrolling.length === 0, scrolling.join(","));
+    const fillOf = (b) => {
+        const box = b.content.getBoundingClientRect();
+        const node = b.content.querySelector("[data-wv]");
+        const cs = getComputedStyle(node);
+        const own = parseFloat(cs.borderTopWidth) > 0 || cs.backgroundColor !== "rgba(0, 0, 0, 0)" || cs.backgroundImage !== "none";
+        const rects = (own ? [node] : [...node.children]).map((el) => el.getBoundingClientRect()).filter((r) => r.width || r.height);
+        const w = Math.max(...rects.map((r) => r.right)) - Math.min(...rects.map((r) => r.left));
+        const h = Math.max(...rects.map((r) => r.bottom)) - Math.min(...rects.map((r) => r.top));
+        return Math.max(w / box.width, h / box.height);
+    };
+    const small = all.find((b) => b.content.querySelector('[data-wv="reticle"]'));
+    check("klein element groeit mee met een groter block", fillOf(big) > 0.8 && fillOf(small) > 0.8,
+        `2×2=${fillOf(big).toFixed(2)} 1×1=${fillOf(small).toFixed(2)}`);
+    const readout = all.find((b) => b.content.querySelector('[data-wv="readout"]'))?.content.querySelector("[data-wv]");
+    check("readout staat horizontaal", readout && readout.offsetWidth > readout.offsetHeight, readout && `${readout.offsetWidth}×${readout.offsetHeight}`);
+    const before2 = fillOf(big);
+    big.span(1, 1);
+    await wait(200);
+    const bigFrame = big.content.querySelector(".wv-element");
+    check("herschalen volgt een span-wijziging", Math.abs(fillOf(big) - before2) < 0.25 && fillOf(big) > 0.8,
+        `${fillOf(big).toFixed(2)} frame=${bigFrame.clientWidth}×${bigFrame.clientHeight} ${bigFrame.firstElementChild.style.transform}`);
+
+    // --- weerlegde randgevallen ---
+    const tiny = createBlocksSystem({ layout: "fixed-grid" });
+    const tinyWaves = registerWaveElements(tiny, { engine: window.VanillaWaves });
+    const host2 = document.createElement("div");
+    host2.style.cssText = "width:200px;height:100px";
+    document.body.appendChild(host2);
+    tiny.attach(host2);
+    let spanRejected = false;
+    try { await tinyWaves.add("barcode"); } catch { spanRejected = true; }
+    check("span die niet past: add() weigert en laat geen block achter", spanRejected && host2.querySelectorAll(".blocks-system-object").length === 0 && tinyWaves.size === 0,
+        `blocks=${host2.querySelectorAll(".blocks-system-object").length} size=${tinyWaves.size}`);
+    const hijack = await waves.add("bars", { wv: "boot" });
+    check("setting 'wv' kan het renderertype niet overnemen", hijack.content.querySelector("[data-wv]").dataset.wv === "bars");
+    let dupRejected = false;
+    try { registerWaveElements(system, { adapter: "wave-element-2" }); } catch { dupRejected = true; }
+    check("dubbel registreren weigert zonder halve adapter", dupRejected && !system.listAdapters().includes("wave-element-2"));
+} catch (error) {
+    check("geen uitzondering", false, error.stack || String(error));
+}
+
+const failed = results.filter((r) => !r.ok).length;
+document.title = failed ? `FAIL ${failed}/${results.length}` : `PASS ${results.length}`;
+</script>
+</body>
+</html>
